@@ -1,3 +1,5 @@
+#!/usr/bin/python
+
 """
 Control a Somfy 5-channel remote (e.g. Somfy Situo 5 io Pure) with GPIOs from a Raspberry Pi.
 See: https://github.com/rfkd/somfy-control
@@ -11,10 +13,10 @@ from time import sleep
 
 # LED input pin assignments (use GPIO header pin numbers, NOT Broadcom channel numbers)
 LEDS = {
-    'LED1': 31,
-    'LED2': 32,
-    'LED3': 33,
-    'LED4': 35
+    'LED1': 32,
+    'LED2': 33,
+    'LED3': 35,
+    'LED4': 31
 }
 
 # Button output pin assignments (GPIO header pin numbers, NOT Broadcom channel numbers)
@@ -59,11 +61,12 @@ def press_button(button):
     """
 
     # Delay during which the given button remains pressed
-    delay_press = 0.25
+    delay_press = 0.1
 
     GPIO.output(BUTTONS[button], GPIO.LOW)
     sleep(delay_press)
     GPIO.output(BUTTONS[button], GPIO.HIGH)
+    sleep(delay_press)
 
     vprint("Button " + button + " pressed.")
 
@@ -116,26 +119,6 @@ def set_channel(channel):
     :param channel: Channel number to set (1..5).
     """
 
-    # Delay between two channel reads (polling delay)
-    delay_get = 0.25
-
-    # Delay between two SELECT button presses
-    delay_press = 0.5
-
-    # Wait until the remote is off to avoid race conditions
-    if get_channel() == 0:
-        vprint("Remote is active, waiting for switch off...")
-        safety_buffer = 1
-        retries = int((TIMEOUT + safety_buffer) // delay_get)
-        for i in range(0, retries):
-            if get_channel() == 0:
-                break
-            if i == retries - 1:
-                print("Error: Remote doesn't seem to switch off. Is the script configuration correct?")
-                clean_exit(1)
-            sleep(delay_get)
-        vprint("Remote is now off.")
-
     # Activate the remote and check the currently selected channel
     press_button('SELECT')
     current_channel = get_channel()
@@ -145,10 +128,9 @@ def set_channel(channel):
 
     # Select the correct channel
     number_of_channels = 5
-    button_presses_needed = (number_of_channels - current_channel + int(channel)) % number_of_channels
+    button_presses_needed = (number_of_channels - current_channel + channel) % number_of_channels
     for i in range(0, button_presses_needed):
         press_button('SELECT')
-        sleep(delay_press)
 
     # Exit if the channel switch was not successful
     current_channel = get_channel()
@@ -170,7 +152,7 @@ def main():
                                      formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument('-c', '--channel', dest='channel', choices=['1', '2', '3', '4', '5'],
                         help='remote control channel number', required=True)
-    parser.add_argument('-b', '--button', dest='button', choices=['UP', 'STOP', 'DOWN'],
+    parser.add_argument('-b', '--button', dest='button', choices=['UP', 'MY', 'DOWN'],
                         help='remote control button', required=True)
     parser.add_argument('-o', '--override-warnings', dest='warnings', action='store_false',
                         help='override all warnings')
@@ -187,7 +169,7 @@ def main():
         GPIO.setup(BUTTONS[name], GPIO.OUT, initial=GPIO.HIGH)
 
     # Select the channel
-    set_channel(arguments.channel)
+    set_channel(int(arguments.channel))
 
     # Press the button
     press_button(arguments.button)
