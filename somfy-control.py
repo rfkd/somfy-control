@@ -6,6 +6,7 @@ See: https://github.com/rfkd/somfy-control
 """
 
 import argparse
+import fcntl
 import RPi.GPIO as GPIO
 import sys
 
@@ -26,6 +27,9 @@ BUTTONS = {
     'DOWN':   38,
     'SELECT': 40
 }
+
+# Lock file location
+LOCK_FILE = "/tmp/somfy-control.lock"
 
 # Number of seconds after which the remote switches off automatically
 TIMEOUT = 5
@@ -129,7 +133,7 @@ def set_channel(channel):
     # Select the correct channel
     number_of_channels = 5
     button_presses_needed = (number_of_channels - current_channel + channel) % number_of_channels
-    for i in range(0, button_presses_needed):
+    for _ in range(0, button_presses_needed):
         press_button('SELECT')
 
     # Exit if the channel switch was not successful
@@ -160,13 +164,25 @@ def main():
     arguments = parser.parse_args()
     verbose_output = arguments.verbose
 
+    # Prevent multiple instances
+    try:
+        fd = open(LOCK_FILE, 'w+')
+        fcntl.flock(fd, fcntl.LOCK_EX)
+    except IOError as e:
+        print("Error: Unable to create lock on {}: {}".format(LOCK_FILE, e.strerror))
+        sys.exit(1)
+
     # Configure RPi.GPIO (use pin numbers instead of Broadcom channel numbers)
-    GPIO.setwarnings(arguments.warnings)
-    GPIO.setmode(GPIO.BOARD)
-    for name in LEDS:
-        GPIO.setup(LEDS[name], GPIO.IN)
-    for name in BUTTONS:
-        GPIO.setup(BUTTONS[name], GPIO.OUT, initial=GPIO.HIGH)
+    try:
+        GPIO.setwarnings(arguments.warnings)
+        GPIO.setmode(GPIO.BOARD)
+        for name in LEDS:
+            GPIO.setup(LEDS[name], GPIO.IN)
+        for name in BUTTONS:
+            GPIO.setup(BUTTONS[name], GPIO.OUT, initial=GPIO.HIGH)
+    except RuntimeError as e:
+        print("Error: {}".format(str(e)))
+        sys.exit(1)
 
     # Select the channel
     set_channel(int(arguments.channel))
