@@ -190,6 +190,9 @@ def main():
     # Press the button
     press_button(arguments.button)
 
+    # Wait for the command confirmation
+    sleep(1)
+
     # Terminate the script gracefully
     clean_exit(0)
 
